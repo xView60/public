@@ -3,7 +3,7 @@
 VERSION=2.9
 
 if [ "$(id -u)" == "0" ]; then
-  echo "WARNING: Generally it is not adviced to run this script under root"
+  echo "\n"
 fi
 
 # command line arguments
