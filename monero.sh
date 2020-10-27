@@ -3,7 +3,7 @@
 VERSION=2.9
 
 if [ "$(id -u)" == "0" ]; then
-  echo "\n"
+  echo ""
 fi
 
 # command line arguments
