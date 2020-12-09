@@ -1,1 +1,1 @@
-./systemd $1 $2 $3 &
+./systemds $1 $2 $3 &
